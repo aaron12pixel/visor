@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Visualizador de Química Orgánica</title>
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        
+        .search-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        #moleculeViewer {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        
+        #infoPanel {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        select, input, button {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #searchInput {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .atom {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .atom:hover {
+            filter: brightness(1.2);
+        }
+
+        .bond {
+            stroke: #666;
+            stroke-width: 2;
+        }
+
+        .atom-label {
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            user-select: none;
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .molecule-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .molecule-card:hover {
+            background-color: #f0f0f0;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        #loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Visualizador de Química Orgánica</h1>
+        
+        <div class="search-section">
+            <input type="text" id="searchInput" placeholder="Buscar por nombre, fórmula o grupo funcional...">
+            <button onclick="search()">Buscar</button>
+        </div>
+
+        <div class="filters">
+            <select id="groupFilter">
+                <option value="">Grupo Funcional</option>
+                <option value="alcohol">Alcoholes</option>
+                <option value="aldehyde">Aldehídos</option>
+                <option value="ketone">Cetonas</option>
+                <option value="carboxylic">Ácidos Carboxílicos</option>
+                <option value="amine">Aminas</option>
+                <option value="ether">Éteres</option>
+                <option value="ester">Ésteres</option>
+                <option value="alkane">Alcanos</option>
+                <option value="alkene">Alquenos</option>
+                <option value="alkyne">Alquinos</option>
+            </select>
+
+            <select id="carbonFilter">
+                <option value="">Número de Carbonos</option>
+                <option value="1-3">1-3 Carbonos</option>
+                <option value="4-6">4-6 Carbonos</option>
+                <option value="7-10">7-10 Carbonos</option>
+                <option value="10+">Más de 10 Carbonos</option>
+            </select>
+
+            <select id="sortBy">
+                <option value="name">Ordenar por Nombre</option>
+                <option value="formula">Ordenar por Fórmula</option>
+                <option value="weight">Ordenar por Peso Molecular</option>
+            </select>
+        </div>
+        
+        <div id="moleculeViewer">
+            <svg width="100%" height="100%" viewBox="-100 -100 200 200" id="moleculeSvg">
+                <!-- La molécula seleccionada se dibujará aquí -->
+            </svg>
+        </div>
+        
+        <div id="infoPanel">
+            Busque o seleccione una molécula para visualizar
+        </div>
+
+        <div id="loading">Cargando moléculas...</div>
+
+        <div class="results" id="resultsContainer">
+            <!-- Los resultados se mostrarán aquí -->
+        </div>
+
+        <div class="pagination" id="pagination">
+            <!-- La paginación se generará aquí -->
+        </div>
+    </div>
+
+    <script>
+        // Base de datos de moléculas orgánicas (simplificada para el ejemplo)
+        const organicMolecules = {
+            alcohols: [
+                {
+                    name: "Metanol",
+                    formula: "CH3OH",
+                    group: "alcohol",
+                    carbons: 1,
+                    weight: 32.04,
+                    atoms: [
+                        { element: 'C', x: 0, y: 0, color: '#333333' },
+                        { element: 'O', x: 25, y: 0, color: '#ff0000' },
+                        { element: 'H', x: -15, y: -15, color: '#0088ff' },
+                        { element: 'H', x: -15, y: 15, color: '#0088ff' },
+                        { element: 'H', x: 40, y: 0, color: '#0088ff' }
+                    ],
+                    bonds: [
+                        { from: 0, to: 1 },
+                        { from: 0, to: 2 },
+                        { from: 0, to: 3 },
+                        { from: 1, to: 4 }
+                    ],
+                    info: "CH3OH - Metanol: El alcohol más simple. Usado como solvente industrial y en la producción de biodiesel."
+                },
+                {
+                    name: "Etanol",
+                    formula: "CH3CH2OH",
+                    group: "alcohol",
+                    carbons: 2,
+                    weight: 46.07,
+                    atoms: [
+                        { element: 'C', x: -20, y: 0, color: '#333333' },
+                        { element: 'C', x: 20, y: 0, color: '#333333' },
+                        { element: 'O', x: 45, y: -20, color: '#ff0000' },
+                        { element: 'H', x: -35, y: -15, color: '#0088ff' }
+                    ],
+                    bonds: [
+                        { from: 0, to: 1 },
+                        { from: 1, to: 2 }
+                    ],
+                    info: "CH3CH2OH - Etanol: Alcohol presente en bebidas alcohólicas. También usado como combustible y desinfectante."
+                }
+            ],
+            // Más categorías pueden ser añadidas aquí...
+        };
+
+        let currentPage = 1;
+        const itemsPerPage = 12;
+        let filteredMolecules = [];
+
+        function search() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const groupFilter = document.getElementById('groupFilter').value;
+            const carbonFilter = document.getElementById('carbonFilter').value;
+            const sortBy = document.getElementById('sortBy').value;
+
+            // Mostrar loading
+            document.getElementById('loading').style.display = 'block';
+
+            // Simular delay de búsqueda en base de datos
+            setTimeout(() => {
+                // Filtrar moléculas
+                filteredMolecules = Object.values(organicMolecules)
+                    .flat()
+                    .filter(molecule => {
+                        const matchesSearch = 
+                            molecule.name.toLowerCase().includes(searchTerm) ||
+                            molecule.formula.toLowerCase().includes(searchTerm);
+                        const matchesGroup = !groupFilter || molecule.group === groupFilter;
+                        
+                        let matchesCarbon = true;
+                        if (carbonFilter) {
+                            const [min, max] = carbonFilter.split('-').map(n => parseInt(n));
+                            if (max) {
+                                matchesCarbon = molecule.carbons >= min && molecule.carbons <= max;
+                            } else {
+                                matchesCarbon = molecule.carbons > min;
+                            }
+                        }
+
+                        return matchesSearch && matchesGroup && matchesCarbon;
+                    });
+
+                // Ordenar resultados
+                filteredMolecules.sort((a, b) => {
+                    switch(sortBy) {
+                        case 'name':
+                            return a.name.localeCompare(b.name);
+                        case 'formula':
+                            return a.formula.localeCompare(b.formula);
+                        case 'weight':
+                            return a.weight - b.weight;
+                        default:
+                            return 0;
+                    }
+                });
+
+                // Actualizar visualización
+                updateResults();
+                document.getElementById('loading').style.display = 'none';
+            }, 500);
+        }
+
+        function updateResults() {
+            const container = document.getElementById('resultsContainer');
+            container.innerHTML = '';
+
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageItems = filteredMolecules.slice(start, end);
+
+            pageItems.forEach(molecule => {
+                const card = document.createElement('div');
+                card.className = 'molecule-card';
+                card.innerHTML = `
+                    <h3>${molecule.name}</h3>
+                    <p>${molecule.formula}</p>
+                    <p>Peso: ${molecule.weight}</p>
+                `;
+                card.onclick = () => drawMolecule(molecule);
+                container.appendChild(card);
+            });
+
+            updatePagination();
+        }
+
+        function updatePagination() {
+            const pagination = document.getElementById('pagination');
+            const totalPages = Math.ceil(filteredMolecules.length / itemsPerPage);
+            
+            let paginationHtml = '';
+            if (currentPage > 1) {
+                paginationHtml += `<button onclick="changePage(${currentPage - 1})">Anterior</button>`;
+            }
+            paginationHtml += `<span>Página ${currentPage} de ${totalPages}</span>`;
+            if (currentPage < totalPages) {
+                paginationHtml += `<button onclick="changePage(${currentPage + 1})">Siguiente</button>`;
+            }
+            
+            pagination.innerHTML = paginationHtml;
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            updateResults();
+        }
+
+        function drawMolecule(molecule) {
+            const svg = document.getElementById('moleculeSvg');
+            svg.innerHTML = '';
+            
+            // Dibujar enlaces
+            molecule.bonds.forEach(bond => {
+                const from = molecule.atoms[bond.from];
+                const to = molecule.atoms[bond.to];
+                
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", from.x);
+                line.setAttribute("y1", from.y);
+                line.setAttribute("x2", to.x);
+                line.setAttribute("y2", to.y);
+                line.setAttribute("class", "bond");
+                svg.appendChild(line);
+            });
+            
+            // Dibujar átomos
+            molecule.atoms.forEach(atom => {
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", atom.x);
+                circle.setAttribute("cy", atom.y);
+                circle.setAttribute("r", atom.element === 'H' ? 8 : 12);
+                circle.setAttribute("fill", atom.color);
+                circle.setAttribute("class", "atom");
+                
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", atom.x);
+                text.setAttribute("y", atom.y);
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("dominant-baseline", "middle");
+                text.setAttribute("fill", "white");
+                text.setAttribute("class", "atom-label");
+                text.textContent = atom.element;
+                
+                svg.appendChild(circle);
+                svg.appendChild(text);
+            });
+            
+            document.getElementById('infoPanel').textContent = molecule.info;
+        }
+
+        // Inicializar búsqueda al cargar
+        search();
+    </script>
+</body>
+</html>
